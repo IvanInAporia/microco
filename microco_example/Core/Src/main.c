@@ -22,7 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include <stdio.h>
+#include <stdint.h>
+#include "microco.h"
 
 /* USER CODE END Includes */
 
@@ -59,6 +60,18 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+static co_t co1;
+static uint8_t stack1[256] __attribute__((aligned(8)));
+
+static void worker(void *arg) {
+    (void)arg;
+    for (int i = 0; i < 3; ++i) {
+        /* ... do something (toggle a GPIO, etc.) ... */
+        HAL_UART_Transmit(&huart2, "worker\n", 8, 10);
+
+        co_yield();
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -92,6 +105,21 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+
+    
+
+    co_init(&co1, stack1, sizeof(stack1), worker, NULL);
+
+    while (!co1.done) {
+        HAL_UART_Transmit(&huart2, "main\n", 5, 10);
+        /* main continues here whenever worker yields */
+        co_resume(&co1);
+        /* ... do main-side work ... */
+    }
+
+    HAL_UART_Transmit(&huart2, "done\n", 5, 10);
+
 
   /* USER CODE END 2 */
 

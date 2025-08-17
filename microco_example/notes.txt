@@ -1,0 +1,15 @@
+microco
+
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text    data     bss     dec     hex filename
+   9736      12    1708   11456    2cc0 microco.elf
+
+Optimized for size (Os), No heap, 0x200 stack:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text    data     bss     dec     hex filename
+   5732      12     684    6428    191c microco.elf
+
+Adding microco with one task with 256 byte stack:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   6264	     16	    976	   7256	   1c58	microco.elf
