@@ -60,18 +60,41 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+typedef struct {
+    uint8_t * buffer;
+    size_t len;
+} ToSend;
+
+ToSend toSend = {0,};
+
+static void BSP_UART_Send(uint8_t * buffer, size_t len) {
+    toSend.buffer = buffer;
+    toSend.len = len;
+    co_yield();
+}
+
 static co_t co1;
-static uint8_t stack1[256] __attribute__((aligned(8)));
+static co_t co2;
 
-static void worker(void *arg) {
+static uint8_t stack1[128] __attribute__((aligned(8)));
+static uint8_t stack2[128] __attribute__((aligned(8)));
+
+static void worker1(void *arg) {
     (void)arg;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 5; ++i) {
         /* ... do something (toggle a GPIO, etc.) ... */
-        HAL_UART_Transmit(&huart2, "worker\n", 8, 10);
-
-        co_yield();
+        BSP_UART_Send("worker1\n", 8);
     }
 }
+
+static void worker2(void *arg) {
+    (void)arg;
+    for (int i = 0; i < 5; ++i) {
+        /* ... do something (toggle a GPIO, etc.) ... */
+        BSP_UART_Send("worker2\n", 8);
+    }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -107,15 +130,26 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-    
+    co_init(&co1, stack1, sizeof(stack1), worker1, NULL);
+    co_init(&co2, stack2, sizeof(stack2), worker2, NULL);
 
-    co_init(&co1, stack1, sizeof(stack1), worker, NULL);
-
-    while (!co1.done) {
+    while (!co1.done || !co2.done) {
         HAL_UART_Transmit(&huart2, "main\n", 5, 10);
         /* main continues here whenever worker yields */
         co_resume(&co1);
+
+        if (toSend.buffer) {
+            HAL_UART_Transmit(&huart2, toSend.buffer, toSend.len, 100);
+            toSend.buffer = NULL;
+        }
+        
+        co_resume(&co2);
         /* ... do main-side work ... */
+
+        if (toSend.buffer) {
+            HAL_UART_Transmit(&huart2, toSend.buffer, toSend.len, 100);
+            toSend.buffer = NULL;
+        }
     }
 
     HAL_UART_Transmit(&huart2, "done\n", 5, 10);

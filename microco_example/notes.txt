@@ -13,3 +13,8 @@ Adding microco with one task with 256 byte stack:
 arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
    text	   data	    bss	    dec	    hex	filename
    6264	     16	    976	   7256	   1c58	microco.elf
+
+Doing the UART calls from main only:
+* Reduced worker stack usage from 100 to 24 bytes
+* Increased main stack usage from 208 to 216 bytes
+* Summary saved 68 bytes of overall usage
