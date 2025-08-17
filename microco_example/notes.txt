@@ -18,3 +18,13 @@ Doing the UART calls from main only:
 * Reduced worker stack usage from 100 to 24 bytes
 * Increased main stack usage from 208 to 216 bytes
 * Summary saved 68 bytes of overall usage
+
+Adding a second task of 256 byte stack and UART logic in main only:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   6416	     16	   1256	   7688	   1e08	microco.elf
+
+Reduced stacks to 128 bytes and added LPUART:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   6492	     16	   1136	   7644	   1ddc	microco.elf
