@@ -1,0 +1,7 @@
+# STM32 IDE
+/microco_example/Drivers/*
+*.launch
+*/Debug/*
+
+# Visual Studio Code settings
+/.vscode/*
