@@ -28,3 +28,8 @@ Reduced stacks to 128 bytes and added LPUART:
 arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
    text	   data	    bss	    dec	    hex	filename
    6492	     16	   1136	   7644	   1ddc	microco.elf
+
+Adding send and receive on a separate port and implement delay with co_yield:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   8104	     16	   1160	   9280	   2440	microco.elf

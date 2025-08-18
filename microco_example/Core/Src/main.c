@@ -67,12 +67,40 @@ typedef struct {
     size_t len;
 } ToSend;
 
-ToSend toSend = {0,};
+typedef struct {
+    uint8_t * buffer;
+    size_t len;
+    uint32_t timeout;
+} ToReceive;
+
+ToSend toSendUart2 = {0,};
+ToSend toSendLpuart1 = {0,};
+ToReceive toReceiveUart2 = {0,};
 
 static void BSP_UART_Send(uint8_t * buffer, size_t len) {
-    toSend.buffer = buffer;
-    toSend.len = len;
+    toSendUart2.buffer = buffer;
+    toSendUart2.len = len;
     co_yield();
+}
+
+static void BSP_UART_Receive(uint8_t * buffer, size_t len, uint32_t timeout) {
+    toReceiveUart2.buffer = buffer;
+    toReceiveUart2.len = len;
+    toReceiveUart2.timeout = timeout;
+    co_yield();
+}
+
+static void BSP_LPUART_Send(uint8_t * buffer, size_t len) {
+    toSendLpuart1.buffer = buffer;
+    toSendLpuart1.len = len;
+    co_yield();
+}
+
+static void BSP_Delay(uint32_t ms) {
+    uint32_t start = HAL_GetTick();
+    while (HAL_GetTick() - start < ms) {
+        co_yield();
+    }
 }
 
 static co_t co1;
@@ -84,16 +112,17 @@ static uint8_t stack2[128] __attribute__((aligned(8)));
 static void worker1(void *arg) {
     (void)arg;
     for (int i = 0; i < 5; ++i) {
-        /* ... do something (toggle a GPIO, etc.) ... */
-        BSP_UART_Send("worker1\n", 8);
+        BSP_LPUART_Send((uint8_t *)"worker1\n", 8);
+        BSP_Delay(300);
     }
 }
 
 static void worker2(void *arg) {
     (void)arg;
     for (int i = 0; i < 5; ++i) {
-        /* ... do something (toggle a GPIO, etc.) ... */
-        BSP_UART_Send("worker2\n", 8);
+        static uint8_t buffer[8];
+        BSP_UART_Receive(buffer, sizeof(buffer), 1000);
+        BSP_UART_Send(buffer, sizeof(buffer));
     }
 }
 
@@ -132,27 +161,35 @@ int main(void)
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
+    // Workaround for spurious byte received at boot. Flush any data.
+    while (HAL_UART_Receive(&huart2, stack1, 1, 10) == HAL_OK) {
+
+    }
 
     co_init(&co1, stack1, sizeof(stack1), worker1, NULL);
     co_init(&co2, stack2, sizeof(stack2), worker2, NULL);
 
     while (!co1.done || !co2.done) {
-        HAL_UART_Transmit(&huart2, "main\n", 5, 10);
         /* main continues here whenever worker yields */
         co_resume(&co1);
 
-        if (toSend.buffer) {
-            HAL_UART_Transmit(&huart2, toSend.buffer, toSend.len, 100);
-            toSend.buffer = NULL;
+        if (toSendLpuart1.buffer) {
+            HAL_UART_Transmit_IT(&hlpuart1, toSendLpuart1.buffer, toSendLpuart1.len);
+            toSendLpuart1.buffer = NULL;
+        }
+
+        co_resume(&co2);
+
+        if (toReceiveUart2.buffer) {
+            HAL_UART_Receive(&huart2, toReceiveUart2.buffer, toReceiveUart2.len, 1000);
+            toReceiveUart2.buffer = NULL;
+        }
+
+        if (toSendUart2.buffer) {
+            HAL_UART_Transmit(&huart2, toSendUart2.buffer, toSendUart2.len, 100);
+            toSendUart2.buffer = NULL;
         }
         
-        co_resume(&co2);
-        /* ... do main-side work ... */
-
-        if (toSend.buffer) {
-            HAL_UART_Transmit(&huart2, toSend.buffer, toSend.len, 100);
-            toSend.buffer = NULL;
-        }
     }
 
     HAL_UART_Transmit(&huart2, "done\n", 5, 10);
@@ -238,7 +275,7 @@ static void MX_LPUART1_UART_Init(void)
 
   /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 1200;
+  hlpuart1.Init.BaudRate = 9600;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
   hlpuart1.Init.StopBits = UART_STOPBITS_1;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
@@ -278,7 +315,7 @@ static void MX_USART2_UART_Init(void)
   huart2.Init.Parity = UART_PARITY_NONE;
   huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_8;
   huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   if (HAL_UART_Init(&huart2) != HAL_OK)
@@ -309,7 +346,10 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    volatile uint32_t error = HAL_UART_GetError(huart);
+}
 /* USER CODE END 4 */
 
 /**
