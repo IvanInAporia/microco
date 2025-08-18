@@ -44,3 +44,7 @@ arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
    text	   data	    bss	    dec	    hex	filename
    8820	     16	   1192	  10028	   272c	microco.elf
    
+Implement resume from interrupt:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   8868	     16	   1176	  10060	   274c	microco.elf

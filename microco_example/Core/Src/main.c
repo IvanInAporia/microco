@@ -66,14 +66,12 @@ static void MX_LPUART1_UART_Init(void);
 typedef struct {
     co_t    * toResume; // Coroutine to resume after sending is done
     bool    isBusy;     // Indicates if a send operation is already in progress
-    bool    isDone;     // Indicates if a send operation is done (interrupt received)
 } ToSend;
 
 typedef struct {
     uint32_t timeout;
     co_t    * toResume; // Coroutine to resume after receiving is done
     bool    isBusy;     // Indicates if a receive operation is already in progress
-    bool    isDone;     // Indicates if a receive operation is done (interrupt received)
 } ToReceive;
 
 ToSend toSendUart2 = {0,};
@@ -83,7 +81,6 @@ ToReceive toReceiveUart2 = {0,};
 static uint8_t BSP_UART_Send(uint8_t * buffer, size_t len) {
     if (!toSendUart2.isBusy) {
         toSendUart2.isBusy = true;
-        toSendUart2.isDone = false;
         toSendUart2.toResume = co_current();
 
         HAL_UART_Transmit_IT(&huart2, buffer, len);
@@ -98,7 +95,6 @@ static uint8_t BSP_UART_Send(uint8_t * buffer, size_t len) {
 static uint8_t BSP_UART_Receive(uint8_t * buffer, size_t len, uint32_t timeout) {
     if (!toReceiveUart2.isBusy) {
         toReceiveUart2.isBusy = true;
-        toReceiveUart2.isDone = false;
         toReceiveUart2.timeout = timeout;
         toReceiveUart2.toResume = co_current();
 
@@ -115,7 +111,6 @@ static uint8_t BSP_UART_Receive(uint8_t * buffer, size_t len, uint32_t timeout) 
 static uint8_t BSP_LPUART_Send(uint8_t * buffer, size_t len) {
     if (!toSendLpuart1.isBusy) {
         toSendLpuart1.isBusy = true;
-        toSendLpuart1.isDone = false;
         toSendLpuart1.toResume = co_current();
 
         HAL_UART_Transmit_IT(&hlpuart1, buffer, len);
@@ -136,14 +131,14 @@ static uint8_t stack1[128] __attribute__((aligned(8)));
 static uint8_t stack2[128] __attribute__((aligned(8)));
 
 static void worker1() {
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 500; ++i) {
         BSP_LPUART_Send((uint8_t *)"worker1\n", 8);
         co_sleep(1000);
     }
 }
 
 static void worker2() {
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 500; ++i) {
         static uint8_t buffer[8];
         BSP_UART_Receive(buffer, sizeof(buffer), 1000);
         BSP_UART_Send(buffer, sizeof(buffer));
@@ -204,28 +199,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    // All of these are needed because co_resume cannot be called from an interrupt
-
-    if (toSendLpuart1.isDone)
-    {
-        toSendLpuart1.isBusy = false;
-        toSendLpuart1.isDone = false;
-        co_resume(toSendLpuart1.toResume);
-    }
-
-    if (toReceiveUart2.isDone) {
-        toReceiveUart2.isBusy = false;
-        toReceiveUart2.isDone = false;
-        co_resume(toReceiveUart2.toResume);
-    }
-
-    if (toSendUart2.isDone) {
-        toSendUart2.isBusy = false;
-        toSendUart2.isDone = false;
-        co_resume(toSendUart2.toResume);
-    }
-
-    // Loop iteration to allow for features like sleep
+    // Loop iteration to allow for features like sleep or resume from interrupt
     co_loop();
 
     /* USER CODE BEGIN 3 */
@@ -380,7 +354,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 	else if (huart == &huart2)
 	{
-        toReceiveUart2.isDone = true;
+		if (toReceiveUart2.isBusy)
+		{
+			toReceiveUart2.isBusy = false;
+			if (toReceiveUart2.toResume != NULL)
+			{
+				co_resume(toReceiveUart2.toResume);
+			}
+		}
 	}
 }
 
@@ -388,11 +369,25 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart == &hlpuart1)
 	{
-        toSendLpuart1.isDone = true;
-	}
-	else if (huart == &huart2)
+        if (toSendLpuart1.isBusy)
+        {
+        	toSendLpuart1.isBusy = false;
+            if (toSendLpuart1.toResume != NULL)
+        	{
+        		co_resume(toSendLpuart1.toResume);
+        	}
+        }
+    }
+    else if (huart == &huart2)
 	{
-        toSendUart2.isDone = true;
+		if (toSendUart2.isBusy)
+        {
+            toSendUart2.isBusy = false;
+            if (toSendUart2.toResume != NULL)
+            {
+                co_resume(toSendUart2.toResume);
+            }
+        }
 	}
 }
 

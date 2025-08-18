@@ -14,13 +14,14 @@ static co_t   *g_list    = NULL;       // linked list of coroutines
 
 /* Forward declarations */
 static void co_entry(void);
+static void co_return_to_main(void);
 
 /* Initialize a coroutine with a user-provided stack buffer */
 void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
                            co_func fn)
 {
     co->fn   = fn;
-    co->done = 0;
+    co->status = CO_STATUS_IDLE;
     co->next = g_list;
     g_list   = co;
 
@@ -37,32 +38,53 @@ void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
 
 /* Yield back to main context */
 void co_yield(void) {
-    context_switch(&g_current->sp, &g_main_co.sp);
+    if (g_current->status == CO_STATUS_RUNNING)
+    {
+        g_current->status = CO_STATUS_WAITING;
+        co_return_to_main();
+    }
+    else
+    {
+        __asm volatile ("bkpt #0");
+    }
 }
 
 /* Resume a coroutine; returns when it yields or finishes */
 void co_resume(co_t *co) {
-    if (co->done) return;
-    co_t *prev = g_current;
-    g_current  = co;
-    context_switch(&prev->sp, &co->sp);
-    g_current  = prev;
+    if ((co->status == CO_STATUS_FINISHED) || (co->status == CO_STATUS_RUNNING) || (co->status == CO_STATUS_MAIN)) {
+        __asm volatile ("bkpt #0");
+        return;
+    }
+
+    uint32_t ipsr;
+    __asm volatile ("mrs %0, ipsr" : "=r" (ipsr));
+    if (ipsr != 0) {
+        // Called from interrupt context, do not switch yet, flag for later
+        co->status = CO_STATUS_READY;
+    }
+    else {
+        co_t *prev = g_current;
+        g_current  = co;
+        g_current->status = CO_STATUS_RUNNING;
+        context_switch(&prev->sp, &co->sp);
+        g_current  = prev;
+    }
 }
 
 void co_sleep(uint32_t ms) {
-    // Sleep for a specified duration
-    uint32_t start = HAL_GetTick();
-
-    g_current->sleep_until = start + ms;
-
-    // 0 will mean not sleeping, so change to 1 even though this will
-    // give us one ms additional than requested. No problem since this
-    // sleep is not designed to be exact
-    if (g_current->sleep_until == 0)
+    if (g_current->status == CO_STATUS_RUNNING)
     {
-        g_current->sleep_until = 1;
+        uint32_t start = HAL_GetTick();
+
+        g_current->sleep_until = start + ms;
+
+        g_current->status = CO_STATUS_SLEEPING;
+        co_return_to_main();
     }
-    co_yield();
+    else
+    {
+        __asm volatile ("bkpt #0");
+    }
 }
 
 void co_loop(void)
@@ -72,11 +94,13 @@ void co_loop(void)
     uint32_t now = HAL_GetTick();
     while (p) {
         // If the coroutine is sleeping, check if it's time to wake it up
-        if (p->sleep_until != 0) {
+        if (p->status == CO_STATUS_SLEEPING) {
             if (now >= p->sleep_until) {
-                p->sleep_until = 0; // Reset sleep until
                 co_resume(p);
             }
+        }
+        else if (p->status == CO_STATUS_READY) {
+            co_resume(p);
         }
         
         p = p->next;
@@ -84,13 +108,21 @@ void co_loop(void)
 }
 
 co_t * co_current(void) {
+    if (g_current->status == CO_STATUS_MAIN) {
+        return NULL;
+    }
+
     return g_current;
 }
 
 /* Entry point that runs on the coroutine's own stack */
 static void co_entry(void) {
-    co_t *self = g_current;        /* set by co_resume before switching in */
-    self->fn();           /* run user code */
-    self->done = 1;                /* mark finished */
-    co_yield();                    /* return to main context */
+    co_t *self = g_current;            /* set by co_resume before switching in */
+    self->fn();                        /* run user code */
+    self->status = CO_STATUS_FINISHED; /* mark finished */
+    co_return_to_main();               /* return to main context */
+}
+
+static void co_return_to_main(void) {
+    context_switch(&g_current->sp, &g_main_co.sp);
 }

@@ -10,7 +10,7 @@ To save memory, only the following features are supported:
 
 For now, it has these limitations:
 - Implemented for STM32L0. But might be easy to modify for other ARM processors.
-- Cannot resume from an interrupt.
+- Cannot start a coroutine from another coroutine
 - Cannot directly pass parameters through yield nor resume.
 
 ## Usage Notes
@@ -49,7 +49,7 @@ Returns control to the main context. Must be called from within a coroutine init
 ```c
 void co_resume(co_t *co);
 ```
-Start or resume a coroutine. Must be called from the main context. Do not call from an interrupt handler.
+Start or resume a coroutine. Must be called from the main context or an interrupt handler.
 
 #### Sleep
 
@@ -77,7 +77,6 @@ Get the currently running coroutine.
 ```c
 static co_t co_worker;
 static uint8_t stack_worker[128] __attribute__((aligned(8)));
-static bool tx_done = false;
 
 static void worker() {
     while (1) {
@@ -94,7 +93,7 @@ static void worker() {
 // Callback when the transmission is done
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-    tx_done = true;
+    co_resume(&co_worker);
 }
 
 int main(void) {
@@ -105,14 +104,7 @@ int main(void) {
     co_resume(&co_worker);
 
     while (1) {
-        // Resume is done here since cannot call co_resume from an interrupt
-        if (tx_done)
-        {
-            tx_done = false;
-            co_resume(&co_worker);
-        }
-
-        // Handle sleeping coroutines (required for co_sleep)
+        // This call within an infinite loop is required for co_sleep and resuming from interrupts
         co_loop();
     }
 }

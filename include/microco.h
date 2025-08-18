@@ -11,13 +11,13 @@
  * 
  * For now it has these limitations:
  * - Implemented for STM23L0. But might be easy to modify for other arm processors.
- * - Cannot resume from an interrupt.
+ * - Cannot start a coroutine from another coroutine
  * - Cannot directly pass parameters through yield nor resume.
  *
  * Usage Notes:
  *   - Do not call coroutine functions directly; use co_resume to start/resume.
  *   - All coroutine stacks must be properly aligned and sized.
- *   - co_loop must be called regularly to handle sleeping coroutines.
+ *   - co_loop must be called regularly to handle sleep and resume from interrupt.
  */
 #pragma once
 
@@ -29,12 +29,22 @@
 */
 typedef void (*co_func)(void);
 
+typedef enum {
+    CO_STATUS_IDLE,     // Coroutine just created
+    CO_STATUS_MAIN,     // Not a real status, represents the main context which cannot yield nor be resumed
+    CO_STATUS_READY,    // Ready to run, will be resumed on next call to co_loop
+    CO_STATUS_RUNNING,  // Currently running
+    CO_STATUS_WAITING,  // Coroutine yielded. Waiting to be resumed.
+    CO_STATUS_SLEEPING, // Sleeping
+    CO_STATUS_FINISHED  // Coroutine function returned. Cannot be resumed anymore.
+} co_status_t;
+
 typedef struct co_t {
-    uint32_t    *sp;      /* saved stack pointer */
-    co_func      fn;      /* entry function */
-    int          done;    /* finished flag */
-    struct co_t *next; /* linked list of coroutines */
+    uint32_t    *sp;          /* saved stack pointer */
+    co_func      fn;          /* entry function */
+    struct co_t *next;        /* linked list of coroutines */
     uint32_t     sleep_until; /* sleep until timestamp */
+    co_status_t  status;      /* finished flag */
 } co_t;
 
 /* Initialize a coroutine with a user-provided stack buffer.
@@ -54,7 +64,7 @@ void co_yield(void);
 
 /* Start or resume a coroutine.
 
-   Must be called from the main context. Do not call from
+   Must be called from the main context or
    an interrupt handler.
 */
 void co_resume(co_t *co);
