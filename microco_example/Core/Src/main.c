@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "microco.h"
 
 /* USER CODE END Includes */
@@ -63,37 +64,68 @@ static void MX_LPUART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 typedef struct {
-    uint8_t * buffer;
-    size_t len;
+    co_t    * toResume; // Coroutine to resume after sending is done
+    bool    isBusy;     // Indicates if a send operation is already in progress
+    bool    isDone;     // Indicates if a send operation is done (interrupt received)
 } ToSend;
 
 typedef struct {
-    uint8_t * buffer;
-    size_t len;
     uint32_t timeout;
+    co_t    * toResume; // Coroutine to resume after receiving is done
+    bool    isBusy;     // Indicates if a receive operation is already in progress
+    bool    isDone;     // Indicates if a receive operation is done (interrupt received)
 } ToReceive;
 
 ToSend toSendUart2 = {0,};
 ToSend toSendLpuart1 = {0,};
 ToReceive toReceiveUart2 = {0,};
 
-static void BSP_UART_Send(uint8_t * buffer, size_t len) {
-    toSendUart2.buffer = buffer;
-    toSendUart2.len = len;
-    co_yield();
+static uint8_t BSP_UART_Send(uint8_t * buffer, size_t len) {
+    if (!toSendUart2.isBusy) {
+        toSendUart2.isBusy = true;
+        toSendUart2.isDone = false;
+        toSendUart2.toResume = co_current();
+
+        HAL_UART_Transmit_IT(&huart2, buffer, len);
+        co_yield();
+        return 0;
+    }
+    else {
+        return 1; // Busy
+    }
 }
 
-static void BSP_UART_Receive(uint8_t * buffer, size_t len, uint32_t timeout) {
-    toReceiveUart2.buffer = buffer;
-    toReceiveUart2.len = len;
-    toReceiveUart2.timeout = timeout;
-    co_yield();
+static uint8_t BSP_UART_Receive(uint8_t * buffer, size_t len, uint32_t timeout) {
+    if (!toReceiveUart2.isBusy) {
+        toReceiveUart2.isBusy = true;
+        toReceiveUart2.isDone = false;
+        toReceiveUart2.timeout = timeout;
+        toReceiveUart2.toResume = co_current();
+
+        HAL_UART_Receive_IT(&huart2, buffer, len);
+        co_yield();
+        return 0;
+    }
+    else {
+        // Busy
+        return 1;
+    }
 }
 
-static void BSP_LPUART_Send(uint8_t * buffer, size_t len) {
-    toSendLpuart1.buffer = buffer;
-    toSendLpuart1.len = len;
-    co_yield();
+static uint8_t BSP_LPUART_Send(uint8_t * buffer, size_t len) {
+    if (!toSendLpuart1.isBusy) {
+        toSendLpuart1.isBusy = true;
+        toSendLpuart1.isDone = false;
+        toSendLpuart1.toResume = co_current();
+
+        HAL_UART_Transmit_IT(&hlpuart1, buffer, len);
+        co_yield();
+        return 0;
+    }
+    else {
+        // Busy
+        return 1;
+    }
 }
 
 static void BSP_Delay(uint32_t ms) {
@@ -169,31 +201,8 @@ int main(void)
     co_init(&co1, stack1, sizeof(stack1), worker1, NULL);
     co_init(&co2, stack2, sizeof(stack2), worker2, NULL);
 
-    while (!co1.done || !co2.done) {
-        /* main continues here whenever worker yields */
-        co_resume(&co1);
-
-        if (toSendLpuart1.buffer) {
-            HAL_UART_Transmit_IT(&hlpuart1, toSendLpuart1.buffer, toSendLpuart1.len);
-            toSendLpuart1.buffer = NULL;
-        }
-
-        co_resume(&co2);
-
-        if (toReceiveUart2.buffer) {
-            HAL_UART_Receive(&huart2, toReceiveUart2.buffer, toReceiveUart2.len, 1000);
-            toReceiveUart2.buffer = NULL;
-        }
-
-        if (toSendUart2.buffer) {
-            HAL_UART_Transmit(&huart2, toSendUart2.buffer, toSendUart2.len, 100);
-            toSendUart2.buffer = NULL;
-        }
-        
-    }
-
-    HAL_UART_Transmit(&huart2, "done\n", 5, 10);
-
+    co_resume(&co1);
+    co_resume(&co2);
 
   /* USER CODE END 2 */
 
@@ -202,6 +211,27 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+
+    // All of these are needed because co_resume cannot be called from an interrupt
+
+    if (toSendLpuart1.isDone)
+    {
+        toSendLpuart1.isBusy = false;
+        toSendLpuart1.isDone = false;
+        co_resume(toSendLpuart1.toResume);
+    }
+
+    if (toReceiveUart2.isDone) {
+        toReceiveUart2.isBusy = false;
+        toReceiveUart2.isDone = false;
+        co_resume(toReceiveUart2.toResume);
+    }
+
+    if (toSendUart2.isDone) {
+        toSendUart2.isBusy = false;
+        toSendUart2.isDone = false;
+        co_resume(toSendUart2.toResume);
+    }
 
     /* USER CODE BEGIN 3 */
   }
@@ -346,6 +376,31 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart == &hlpuart1)
+	{
+        // Not used
+	}
+	else if (huart == &huart2)
+	{
+        toReceiveUart2.isDone = true;
+	}
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart == &hlpuart1)
+	{
+        toSendLpuart1.isDone = true;
+	}
+	else if (huart == &huart2)
+	{
+        toSendUart2.isDone = true;
+	}
+}
+
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     volatile uint32_t error = HAL_UART_GetError(huart);

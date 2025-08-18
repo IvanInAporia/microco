@@ -36,3 +36,5 @@ void co_yield(void);
 */
 void co_resume(co_t *co);
 
+/* Get the currently running coroutine. */
+co_t * co_current(void);

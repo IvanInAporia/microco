@@ -46,6 +46,10 @@ void co_resume(co_t *co) {
     g_current  = prev;
 }
 
+co_t * co_current(void) {
+    return g_current;
+}
+
 /* Entry point that runs on the coroutine's own stack */
 static void co_entry(void) {
     co_t *self = g_current;        /* set by co_resume before switching in */
