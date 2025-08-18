@@ -135,16 +135,14 @@ static co_t co2;
 static uint8_t stack1[128] __attribute__((aligned(8)));
 static uint8_t stack2[128] __attribute__((aligned(8)));
 
-static void worker1(void *arg) {
-    (void)arg;
+static void worker1() {
     for (int i = 0; i < 5; ++i) {
         BSP_LPUART_Send((uint8_t *)"worker1\n", 8);
         co_sleep(1000);
     }
 }
 
-static void worker2(void *arg) {
-    (void)arg;
+static void worker2() {
     for (int i = 0; i < 5; ++i) {
         static uint8_t buffer[8];
         BSP_UART_Receive(buffer, sizeof(buffer), 1000);
@@ -192,8 +190,8 @@ int main(void)
 
     }
 
-    co_init(&co1, stack1, sizeof(stack1), worker1, NULL);
-    co_init(&co2, stack2, sizeof(stack2), worker2, NULL);
+    co_init(&co1, stack1, sizeof(stack1), worker1);
+    co_init(&co2, stack2, sizeof(stack2), worker2);
 
     co_resume(&co1);
     co_resume(&co2);

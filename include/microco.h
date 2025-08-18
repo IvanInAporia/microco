@@ -1,16 +1,16 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 /* Coroutine function type.
    All coroutine functions must match this signature.
 */
-typedef void (*co_func)(void *arg);
+typedef void (*co_func)(void);
 
 typedef struct co_t {
     uint32_t    *sp;      /* saved stack pointer */
     co_func      fn;      /* entry function */
-    void        *arg;     /* user argument */
     int          done;    /* finished flag */
     struct co_t *next; /* linked list of coroutines */
     uint32_t     sleep_until; /* sleep until timestamp */
@@ -21,7 +21,7 @@ typedef struct co_t {
    The stack must be 8-byte aligned.
 */
 void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
-                           co_func fn, void *arg);
+                           co_func fn);
 
 /* Returns control to the main context. When the coroutine is resumed is like
    if this function simply returned.

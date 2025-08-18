@@ -17,10 +17,9 @@ static void co_entry(void);
 
 /* Initialize a coroutine with a user-provided stack buffer */
 void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
-                           co_func fn, void *arg)
+                           co_func fn)
 {
     co->fn   = fn;
-    co->arg  = arg;
     co->done = 0;
     co->next = g_list;
     g_list   = co;
@@ -91,7 +90,7 @@ co_t * co_current(void) {
 /* Entry point that runs on the coroutine's own stack */
 static void co_entry(void) {
     co_t *self = g_current;        /* set by co_resume before switching in */
-    self->fn(self->arg);           /* run user code */
+    self->fn();           /* run user code */
     self->done = 1;                /* mark finished */
     co_yield();                    /* return to main context */
 }
