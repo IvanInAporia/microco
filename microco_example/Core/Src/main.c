@@ -128,12 +128,6 @@ static uint8_t BSP_LPUART_Send(uint8_t * buffer, size_t len) {
     }
 }
 
-static void BSP_Delay(uint32_t ms) {
-    uint32_t start = HAL_GetTick();
-    while (HAL_GetTick() - start < ms) {
-        co_yield();
-    }
-}
 
 static co_t co1;
 static co_t co2;
@@ -145,7 +139,7 @@ static void worker1(void *arg) {
     (void)arg;
     for (int i = 0; i < 5; ++i) {
         BSP_LPUART_Send((uint8_t *)"worker1\n", 8);
-        BSP_Delay(300);
+        co_sleep(1000);
     }
 }
 
@@ -232,6 +226,9 @@ int main(void)
         toSendUart2.isDone = false;
         co_resume(toSendUart2.toResume);
     }
+
+    // Loop iteration to allow for features like sleep
+    co_loop();
 
     /* USER CODE BEGIN 3 */
   }

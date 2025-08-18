@@ -38,4 +38,9 @@ A bit more proper interrupt handling:
 arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
    text	   data	    bss	    dec	    hex	filename
    8728	     16	   1160	   9904	   26b0	microco.elf
+
+Implement co_sleep:
+arm-none-eabi-objdump -h -S microco.elf  > "microco.list"
+   text	   data	    bss	    dec	    hex	filename
+   8820	     16	   1192	  10028	   272c	microco.elf
    

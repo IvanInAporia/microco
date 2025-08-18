@@ -8,10 +8,12 @@
 typedef void (*co_func)(void *arg);
 
 typedef struct co_t {
-    uint32_t *sp;      /* saved stack pointer */
-    co_func   fn;      /* entry function */
-    void     *arg;     /* user argument */
-    int       done;    /* finished flag */
+    uint32_t    *sp;      /* saved stack pointer */
+    co_func      fn;      /* entry function */
+    void        *arg;     /* user argument */
+    int          done;    /* finished flag */
+    struct co_t *next; /* linked list of coroutines */
+    uint32_t     sleep_until; /* sleep until timestamp */
 } co_t;
 
 /* Initialize a coroutine with a user-provided stack buffer.
@@ -35,6 +37,16 @@ void co_yield(void);
    an interrupt handler.
 */
 void co_resume(co_t *co);
+
+/* Sleep for a specified duration.
+   Must be called from within a coroutine.
+*/
+void co_sleep(uint32_t ms);
+
+/* Call from an infinite loop in main context. 
+   This is required for features like sleep.
+*/
+void co_loop(void);
 
 /* Get the currently running coroutine. */
 co_t * co_current(void);
