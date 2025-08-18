@@ -6,6 +6,9 @@
 .type context_switch,%function
 /* void context_switch(uint32_t **from_sp, uint32_t **to_sp); */
 context_switch:
+    // Disable all interrupts
+    CPSID i
+
     // save link register
     MOV R2, LR
     PUSH {R2}
@@ -52,6 +55,9 @@ context_switch:
     // Restore link register
     POP {R2}
     MOV LR, R2
+
+    // Re-enable interrupts
+    CPSIE i
 
     // Return to next task
     BX LR
