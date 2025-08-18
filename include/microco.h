@@ -1,3 +1,24 @@
+/*
+ * microco.h - Minimal coroutine library interface
+ *
+ * This header defines the API for a minimal coroutine library suitable for
+ * embedded systems. The main goal is to to have a stackful cooperative 
+ * coroutines using the least amount of memory possible.
+ *
+ * For saving memory only the following features are supported:
+ * - Cooperative coroutine via yield and resume
+ * - Coroutine sleep
+ * 
+ * For now it has these limitations:
+ * - Implemented for STM23L0. But might be easy to modify for other arm processors.
+ * - Cannot resume from an interrupt.
+ * - Cannot directly pass parameters through yield nor resume.
+ *
+ * Usage Notes:
+ *   - Do not call coroutine functions directly; use co_resume to start/resume.
+ *   - All coroutine stacks must be properly aligned and sized.
+ *   - co_loop must be called regularly to handle sleeping coroutines.
+ */
 #pragma once
 
 #include <stddef.h>
