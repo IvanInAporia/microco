@@ -3,6 +3,7 @@ CAD.formats=
 CAD.pinconfig=
 CAD.provider=
 File.Version=6
+GPIO.groupedBy=Group By Peripherals
 KeepUserPlacement=false
 LPUART1.BaudRate=9600
 LPUART1.IPParameters=BaudRate,WordLength,OneBitSampling

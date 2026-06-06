@@ -25,6 +25,12 @@ void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
     co->next = g_list;
     g_list   = co;
 
+    uint32_t *bottom = (uint32_t *)stack_mem;
+    for (int i = 0; i < 16; ++i)
+    {
+        *bottom++ = 0xDEADBEEF;
+    }
+
     /* Top of stack, 8-byte aligned */
     uint32_t *sp = (uint32_t *)(((uintptr_t)stack_mem + stack_bytes) & ~((uintptr_t)7));
 
