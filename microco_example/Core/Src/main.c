@@ -127,8 +127,8 @@ static uint8_t BSP_LPUART_Send(uint8_t * buffer, size_t len) {
 static co_t co1;
 static co_t co2;
 
-static uint8_t stack1[128] __attribute__((aligned(8)));
-static uint8_t stack2[128] __attribute__((aligned(8)));
+static uint32_t stack1[32] __attribute__((aligned(8)));  // 128 bytes
+static uint32_t stack2[32] __attribute__((aligned(8)));  // 128 bytes
 
 static void worker1() {
     for (int i = 0; i < 500; ++i) {
@@ -181,7 +181,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
     // Workaround for spurious byte received at boot. Flush any data.
-    while (HAL_UART_Receive(&huart2, stack1, 1, 10) == HAL_OK) {
+    while (HAL_UART_Receive(&huart2, (uint8_t *)stack1, 1, 10) == HAL_OK) {
 
     }
 

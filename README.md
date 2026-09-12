@@ -19,6 +19,11 @@ For now, it has these limitations:
 
 - **Do not call coroutine functions directly**; use `co_resume` to start/resume.
 - **All coroutine stacks must be properly aligned and sized** (8-byte alignment required).
+- **Declare stacks as `uint32_t` arrays**, not `uint8_t`. `co_init` seeds the initial
+  register frame by writing words through a `uint32_t*`, which is only well-defined if
+  that is the buffer's effective type; a `uint8_t` array breaks the aliasing rules the
+  compiler assumes from `-O2`/`-Os` upwards. `uint32_t` only guarantees 4-byte
+  alignment, so keep the explicit 8-byte alignment attribute.
 - **Call `co_loop` regularly** to handle sleeping coroutines. This is usually done in an infinite loop in the main context.
 
 ## API Reference
@@ -37,7 +42,7 @@ All coroutine functions must match this signature.
 ```c
 void co_init(co_t *co, void *stack_mem, size_t stack_bytes, co_func fn);
 ```
-Initializes a coroutine with a user-provided stack buffer. The stack buffer must be large enough and 8-byte aligned.
+Initializes a coroutine with a user-provided stack buffer. The stack buffer must be an array of `uint32_t`, large enough, and 8-byte aligned.
 
 #### Yield
 
@@ -78,7 +83,7 @@ Get the currently running coroutine.
 
 ```c
 static co_t co_worker;
-static uint8_t stack_worker[128] __attribute__((aligned(8)));
+static uint32_t stack_worker[32] __attribute__((aligned(8)));  // 128 bytes
 
 static void worker() {
     while (1) {

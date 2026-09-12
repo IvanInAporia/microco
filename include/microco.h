@@ -41,17 +41,29 @@ typedef enum {
     CO_STATUS_FINISHED  // Coroutine function returned. Cannot be resumed anymore.
 } co_status_t;
 
+/* sleep_until and status are polled by co_loop in the main context while being
+   written from a coroutine or, for status, from an interrupt handler (co_resume
+   called with a non-zero IPSR). They are volatile so the compiler cannot cache
+   them across such a poll. sp is deliberately left unqualified: it is written by
+   context_switch (assembly) and its address is passed as uint32_t**. */
 typedef struct co_t {
-    uint32_t    *sp;          /* saved stack pointer */
-    co_func      fn;          /* entry function */
-    struct co_t *next;        /* linked list of coroutines */
-    uint32_t     sleep_until; /* sleep until timestamp */
-    co_status_t  status;      /* finished flag */
+    uint32_t             *sp;          /* saved stack pointer */
+    co_func               fn;          /* entry function */
+    struct co_t          *next;        /* linked list of coroutines */
+    volatile uint32_t     sleep_until; /* sleep until timestamp */
+    volatile co_status_t  status;      /* finished flag */
 } co_t;
 
 /* Initialize a coroutine with a user-provided stack buffer.
    The stack buffer must be large enough to hold the coroutine's stack.
    The stack must be 8-byte aligned.
+
+   Declare the buffer as an array of uint32_t, not of uint8_t: co_init seeds the
+   initial register frame by writing words through a uint32_t*, which is only
+   well-defined if that is the buffer's effective type. Writing a uint8_t array
+   that way breaks the aliasing rules the compiler assumes from -O2/-Os upwards.
+   uint32_t alone still only guarantees 4-byte alignment, so keep the explicit
+   8-byte alignment attribute.
 */
 void co_init(co_t *co, void *stack_mem, size_t stack_bytes,
                            co_func fn);
