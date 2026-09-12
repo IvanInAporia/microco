@@ -9,7 +9,9 @@ To save memory, only the following features are supported:
 - Coroutine sleep
 
 For now, it has these limitations:
-- Implemented for STM32L0. But might be easy to modify for other ARM processors.
+- Implemented for ARM Cortex-M0/M0+ (the context switch is Thumb-1 assembly).
+  Builds against any STM32 HAL: only `HAL_GetTick()` is used, and it is declared
+  locally rather than pulled in from a family header. Built for STM32L0 and STM32G0.
 - Cannot start a coroutine from another coroutine
 - Cannot directly pass parameters through yield nor resume.
 

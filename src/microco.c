@@ -1,8 +1,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "stm32l0xx_hal.h"
 #include "microco.h"
+
+/* Millisecond tick, used by co_sleep and co_loop. Declared here instead of
+   including a family header (stm32l0xx_hal.h, stm32g0xx_hal.h, ...) so the
+   library builds against any STM32 HAL -- the signature is the same in all
+   of them. */
+extern uint32_t HAL_GetTick(void);
 
 // Implemented in assembly
 extern void context_switch(uint32_t **from_sp, uint32_t **to_sp);
